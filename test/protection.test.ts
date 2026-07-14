@@ -37,3 +37,35 @@ test("untrusted names cannot create implicit Discord mentions", () => {
 
   assert.deepEqual(handoff.allowedMentions, { parse: [], users: [] });
 });
+
+test("agent aliases match a runner ID while preserving the supplied Intercom name", () => {
+  const originalIntercomId = process.env.AGENT_ARG_INTERCOM_ID;
+  const originalDiscordId = process.env.AGENT_ARG_DISCORD_ID;
+  const originalAliases = process.env.AGENT_ARG_INTERCOM_ALIASES;
+  process.env.AGENT_ARG_INTERCOM_ID = "9037398";
+  process.env.AGENT_ARG_DISCORD_ID = "123456789012345678";
+  process.env.AGENT_ARG_INTERCOM_ALIASES = "arg runner,Arg Exorcist";
+
+  try {
+    const byId = resolveAgentHandoff("Arg", ["9037398"]);
+    const byAlias = resolveAgentHandoff("Arg Exorcist");
+    const unknown = resolveAgentHandoff("New Teammate", ["other-admin"]);
+
+    assert.equal(byId.content, "Created by Arg <@123456789012345678>");
+    assert.equal(byAlias.content, "Created by Arg Exorcist <@123456789012345678>");
+    assert.equal(unknown.content, "Created by New Teammate");
+    assert.deepEqual(unknown.allowedMentions, { parse: [], users: [] });
+  } finally {
+    for (const [key, value] of Object.entries({
+      AGENT_ARG_INTERCOM_ID: originalIntercomId,
+      AGENT_ARG_DISCORD_ID: originalDiscordId,
+      AGENT_ARG_INTERCOM_ALIASES: originalAliases
+    })) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+});

@@ -39,32 +39,79 @@ function isUrgentIssue(text: string): boolean {
     "bets resolving incorrectly"
   ]);
   const hasActiveSecurityImpact =
-    includesAny(text, ["active exploit", "production exploit", "smart contract exploit", "authentication bypass", "account takeover"]) ||
-    (includesAny(text, ["exploit", "vulnerability"]) &&
+    includesAny(text, ["active exploit", "production exploit", "smart contract exploit"]) ||
+    (includesAny(text, ["exploit", "vulnerability", "authentication bypass", "account takeover"]) &&
       includesAny(text, ["active", "draining", "funds being stolen", "funds stolen"]));
 
   return hasGlobalImpact || hasActiveSecurityImpact;
 }
 
 function isBugBountyIssue(text: string): boolean {
-  return includesAny(text, [
+  const hasExplicitBountyIntent = includesAny(text, [
     "bug bounty",
+    "bounty program",
+    "bounty submission",
+    "eligible for bounty",
+    "responsible disclosure",
+    "security disclosure",
+    "proof of concept",
+    "poc",
+    "cve"
+  ]);
+  const hasSecurityFinding = includesAny(text, [
+    "security vulnerability",
+    "vulnerability",
+    "exploit",
+    "authentication bypass",
+    "authorization bypass",
+    "sql injection",
+    "cross-site scripting",
+    "xss",
+    "remote code execution",
+    "privilege escalation",
+    "technical flaw"
+  ]);
+  const hasDisclosureIntent = includesAny(text, [
     "security researcher",
     "researcher",
-    "vulnerability",
-    "potential exploit",
-    "exploit requiring verification",
-    "bug report",
-    "reported bug",
-    "gameplay bug",
-    "visual bug",
-    "ui bug",
-    "logic bug",
-    "incorrect calculation",
-    "api bug",
-    "glitch",
-    "crash"
+    "i found",
+    "i discovered",
+    "reporting",
+    "report this",
+    "submit this",
+    "submit a report",
+    "for review",
+    "allows users to",
+    "allows a user to"
   ]);
+  const hasAccountSupportIntent = includesAny(text, [
+    "my account",
+    "my wallet",
+    "my xp",
+    "my reward",
+    "my rewards",
+    "my deposit",
+    "my withdrawal",
+    "my rugpass",
+    "my challenge",
+    "xp not credited",
+    "reward missing",
+    "rewards missing",
+    "deposit missing",
+    "withdrawal pending",
+    "challenge not completing",
+    "challenge not complete",
+    "not completing",
+    "not credited",
+    "not working",
+    "cannot log in",
+    "can't log in",
+    "please fix",
+    "fix this for me",
+    "help me"
+  ]);
+
+  return hasExplicitBountyIntent || (hasSecurityFinding && hasDisclosureIntent && !hasAccountSupportIntent);
 }
 
 export function classifyFollowUpRoutingTags(conversation: Conversation): FollowUpRoutingTag[] {

@@ -1,6 +1,6 @@
 # Bot API Reference
 
-This service receives an authenticated Intercom Data Connector request, fetches the conversation directly from Intercom, creates an AI summary with DeepSeek, and posts a Discord forum thread.
+This service receives an authenticated Intercom Data Connector request, fetches the ticket directly from Intercom, creates an AI summary with DeepSeek, and posts a Discord forum thread.
 
 ## Base URL
 
@@ -20,7 +20,7 @@ Public liveness endpoint. It intentionally does not reveal Discord, Intercom, De
 
 ### `POST /intercom/ticket`
 
-Creates a Discord follow-up thread for one Intercom conversation.
+Creates a Discord follow-up thread for one Intercom ticket.
 
 #### Authentication
 
@@ -38,15 +38,16 @@ The comparison is constant-time. Requests without valid credentials receive `401
 
 #### Request
 
-`Content-Type: application/json` is required. The request body may contain only `conversation_id`:
+`Content-Type: application/json` is required. The request body should contain the ticket's internal API ID and its conversation ID:
 
 ```json
 {
+  "ticket_id": "{{ticket.id}}",
   "conversation_id": "{{conversation.id}}"
 }
 ```
 
-`conversation_id` is a 1-128 character Intercom identifier composed of letters, numbers, `_`, or `-`. All customer details, messages, tags, assignee data, and routing inputs are fetched directly from the authenticated Intercom Conversations API. Connector-supplied transcripts, contact data, tags, and mention IDs are rejected.
+Use `{{ticket.id}}`, not the Inbox display number (for example, `#116575854`); the display `ticket_id` cannot be retrieved through the Ticket API. `conversation_id` is used for the Intercom link (`.../conversation/{conversation_id}`) and as a fallback when resolving the ticket's linked conversation. All customer details, messages, tags, assignee data, and routing inputs are fetched directly from Intercom. Connector-supplied transcripts, contact data, tags, and mention IDs are rejected.
 
 #### Success response
 
@@ -62,6 +63,30 @@ The comparison is constant-time. Requests without valid credentials receive `401
 ```
 
 Responses include an `X-Request-Id` header for safe operational support. Do not put customer data or secrets in support requests that reference this ID.
+
+### `HEAD /intercom/webhook`
+
+Returns `200 OK`. Intercom uses this endpoint to validate the configured webhook URL.
+
+### `POST /intercom/webhook`
+
+Receives lifecycle notifications for Intercom conversations already linked to a Discord thread. The raw request body must carry a valid `X-Hub-Signature` generated with `INTERCOM_WEBHOOK_CLIENT_SECRET`; unsigned or invalid requests receive `401 Unauthorized`.
+
+The service handles these conversation topics:
+
+- `conversation.user.replied`: the bot refetches the conversation and posts a concise AI delta only if the new customer information materially advances the issue.
+- `conversation.admin.closed`: the linked Discord thread receives a closure note, then is archived and locked.
+- `conversation.admin.opened`: the linked Discord thread is unarchived and unlocked.
+
+It also handles ticket topics for tickets linked to an Intercom conversation carrying the bot-owned Discord thread attributes:
+
+- `ticket.contact.replied`: runs the same material-update filter against ticket replies.
+- `ticket.closed` and `ticket.resolved`: archive and lock the linked Discord thread.
+- `ticket.state.updated`: restores the thread if the ticket is open, or closes it if the ticket is closed.
+
+For a successful `data_connector.execution.completed` notification with a conversation and an executing Intercom teammate, the service replaces the routing card's temporary creator with that teammate's exact Intercom name. This covers direct Inbox runs and other agent-triggered sources such as macros. Configure their Intercom ID, comma-separated aliases, and Discord ID in the corresponding `AGENT_*` environment variables to replace the card with a fresh Discord message: the runner is tagged inside the card and receives a real notification. Unmapped teammates are shown by name without a tag.
+
+Unsupported valid topics return `204 No Content`. The endpoint does not create a new Discord thread; it ignores conversations, tickets without a linked conversation, and linked conversations without the bot-owned `discord_followup_thread_id` custom attribute.
 
 ## Errors And Limits
 
@@ -91,6 +116,7 @@ Successful requests for the same conversation ID are coalesced while processing 
 2. The bot retrieves the conversation from Intercom using `INTERCOM_ACCESS_TOKEN`.
 3. The full conversation context is sent to DeepSeek to generate the summary.
 4. The thread title and Discord embed include selected Intercom details: player name, user ID, conversation ID, timestamps, and AI summary fields.
+5. The bot writes the Discord thread ID and last processed customer part ID to bot-owned Intercom conversation custom attributes. Webhooks use that state to keep the existing thread current.
 
 DeepSeek and Discord are third-party processors of this data. Restrict the Discord forum to authorised staff, use vendor accounts approved for customer data, and ensure the applicable privacy notices, agreements, and retention settings are in place.
 
@@ -108,12 +134,13 @@ A Discord forum thread can have multiple tags. Tags are evaluated and applied in
 | --- | --- | --- |
 | `VIP/Partner` | `contact.partner` is true or `contact.level >= 50`. | Priority handling; may be combined with another tag. |
 | `URGENT` | An active production, security, data, or infrastructure emergency requiring normal work to stop. | Applies `URGENT` and pings configured oop and nikita Discord IDs. |
-| `Bug Bounty` | A non-emergency developer/security investigation, such as a researcher report, potential exploit, gameplay/UI/logic/API bug, or incorrect calculation. | Applies `Bug Bounty`; no automatic developer ping. |
-| `Standard` | Everything else. | Applies only when the ticket is neither `URGENT` nor `Bug Bounty`. |
+| `Bug Bounty` | An intentional security disclosure or bounty submission: the user reports a vulnerability, exploit, or technical security flaw for review, or explicitly mentions bug bounty, bounty, responsible disclosure, CVE, or a proof of concept. | Applies `Bug Bounty`; no automatic developer ping. |
+| `Standard` | Account-specific support and everything else, including a bug that the user wants fixed for their own account (XP, RugPass, deposits, withdrawals, rewards, referrals, crashes, and wallet issues). | Applies only when the ticket is neither `URGENT` nor `Bug Bounty`. |
 
 Examples:
 
 - A level 62 player with missing XP receives `VIP/Partner` + `Standard`.
+- A level 71 player whose RugPass challenge did not complete receives `VIP/Partner` + `Standard`, even if the cause is a gameplay bug.
 - A partner reporting a production exploit receives `VIP/Partner` + `URGENT`.
 - A researcher reporting SQL injection without active exploitation receives `Bug Bounty`.
 - An active exploit draining funds receives `URGENT` + `Bug Bounty`.
@@ -122,6 +149,8 @@ Examples:
 
 - `DISCORD_TOKEN`
 - `INTERCOM_CONNECTOR_SECRET`
+- `INTERCOM_WEBHOOK_CLIENT_SECRET`
+- `INTERCOM_WEBHOOK_PROCESSING_TIMEOUT_MS` (optional; defaults to `4000`)
 - `INTERCOM_ACCESS_TOKEN`
 - `DEEPSEEK_API_KEY`
 - `FOLLOWUP_CHANNEL_ID`

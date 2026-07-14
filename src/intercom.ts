@@ -4,7 +4,8 @@ import { AppError } from "./utils";
 type JsonRecord = Record<string, unknown>;
 
 export interface IntercomTicketRequest {
-  conversationId: string;
+  conversationId?: string;
+  ticketId?: string;
   playerLevel?: number;
 }
 
@@ -62,9 +63,7 @@ export function normalizeRoutingTags(...values: unknown[]): FollowUpRoutingTag[]
       routingTags.add("vipPartner");
     } else if (
       normalized.includes("bugbounty") ||
-      normalized.includes("bounty") ||
-      normalized.includes("bug") ||
-      normalized.includes("crash")
+      normalized.includes("bounty")
     ) {
       routingTags.add("bugBounty");
     } else if (normalized.includes("standard")) {
@@ -84,19 +83,28 @@ export function parseIntercomTicketRequest(body: unknown): IntercomTicketRequest
 
   if (
     keys.length === 0 ||
-    keys.some((key) => key !== "conversation_id" && key !== "player_level")
+    keys.some((key) => key !== "conversation_id" && key !== "ticket_id" && key !== "player_level")
   ) {
-    throw new AppError(400, "Request body may contain only conversation_id and player_level.");
+    throw new AppError(400, "Request body may contain only ticket_id, conversation_id, and player_level.");
   }
 
   const conversationId = readString(body.conversation_id);
+  const ticketId = readString(body.ticket_id);
 
-  if (!/^[A-Za-z0-9_-]{1,128}$/.test(conversationId)) {
-    throw new AppError(400, "conversation_id is required.");
+  if (ticketId && !/^[A-Za-z0-9_-]{1,128}$/.test(ticketId)) {
+    throw new AppError(400, "ticket_id is invalid.");
+  }
+
+  if (conversationId && !/^[A-Za-z0-9_-]{1,128}$/.test(conversationId)) {
+    throw new AppError(400, "conversation_id is invalid.");
+  }
+
+  if (!ticketId && !conversationId) {
+    throw new AppError(400, "ticket_id is required.");
   }
 
   if (body.player_level === undefined || body.player_level === null || body.player_level === "") {
-    return { conversationId };
+    return ticketId ? { ticketId, ...(conversationId ? { conversationId } : {}) } : { conversationId };
   }
 
   const playerLevel = typeof body.player_level === "number"
@@ -109,5 +117,7 @@ export function parseIntercomTicketRequest(body: unknown): IntercomTicketRequest
     throw new AppError(400, "player_level must be a non-negative number.");
   }
 
-  return { conversationId, playerLevel };
+  return ticketId
+    ? { ticketId, ...(conversationId ? { conversationId } : {}), playerLevel }
+    : { conversationId, playerLevel };
 }

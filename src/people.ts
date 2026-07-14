@@ -6,6 +6,7 @@ interface PersonReference {
   discordUsername: string;
   discordIdEnv: string;
   intercomIdEnv: string;
+  intercomAliasesEnv?: string;
   defaultAliases: string[];
 }
 
@@ -27,6 +28,7 @@ const AGENTS: PersonReference[] = [
     discordUsername: "argexorcist8",
     discordIdEnv: "AGENT_ARG_DISCORD_ID",
     intercomIdEnv: "AGENT_ARG_INTERCOM_ID",
+    intercomAliasesEnv: "AGENT_ARG_INTERCOM_ALIASES",
     defaultAliases: ["arg", "argexorcist8", "argexorcist 8"]
   },
   {
@@ -35,6 +37,7 @@ const AGENTS: PersonReference[] = [
     discordUsername: "swatch",
     discordIdEnv: "AGENT_SWATCH_DISCORD_ID",
     intercomIdEnv: "AGENT_SWATCH_INTERCOM_ID",
+    intercomAliasesEnv: "AGENT_SWATCH_INTERCOM_ALIASES",
     defaultAliases: ["swatch"]
   },
   {
@@ -43,6 +46,7 @@ const AGENTS: PersonReference[] = [
     discordUsername: "vmoney",
     discordIdEnv: "AGENT_VMONEY_DISCORD_ID",
     intercomIdEnv: "AGENT_VMONEY_INTERCOM_ID",
+    intercomAliasesEnv: "AGENT_VMONEY_INTERCOM_ALIASES",
     defaultAliases: ["vmoney"]
   },
   {
@@ -51,6 +55,7 @@ const AGENTS: PersonReference[] = [
     discordUsername: "maru",
     discordIdEnv: "AGENT_MARU_DISCORD_ID",
     intercomIdEnv: "AGENT_MARU_INTERCOM_ID",
+    intercomAliasesEnv: "AGENT_MARU_INTERCOM_ALIASES",
     defaultAliases: ["maru"]
   },
   {
@@ -59,6 +64,7 @@ const AGENTS: PersonReference[] = [
     discordUsername: "dem",
     discordIdEnv: "AGENT_DEM_DISCORD_ID",
     intercomIdEnv: "AGENT_DEM_INTERCOM_ID",
+    intercomAliasesEnv: "AGENT_DEM_INTERCOM_ALIASES",
     defaultAliases: ["dem"]
   }
 ];
@@ -105,22 +111,25 @@ function getAliases(person: PersonReference): string[] {
     person.displayName,
     person.discordUsername,
     ...person.defaultAliases,
-    ...parseList(readEnv(person.intercomIdEnv))
+    ...parseList(readEnv(person.intercomIdEnv)),
+    ...(person.intercomAliasesEnv ? parseList(readEnv(person.intercomAliasesEnv)) : [])
   ];
 }
 
 function resolvePerson(
-  value: string,
+  values: string[],
   people: PersonReference[]
 ): PersonResolution | null {
-  const normalizedValue = normalizeAlias(value);
+  const normalizedValues = values
+    .map(normalizeAlias)
+    .filter((value) => value.length > 0);
 
-  if (!normalizedValue) {
+  if (normalizedValues.length === 0) {
     return null;
   }
 
   const person = people.find((candidate) =>
-    getAliases(candidate).some((alias) => normalizeAlias(alias) === normalizedValue)
+    getAliases(candidate).some((alias) => normalizedValues.includes(normalizeAlias(alias)))
   );
 
   if (!person) {
@@ -171,10 +180,11 @@ function buildMentionMessage(prefix: string, people: PersonResolution[]): Handof
 }
 
 export function resolveAgentHandoff(
-  rawCreatedBy: string
+  rawCreatedBy: string,
+  additionalAliases: string[] = []
 ): HandoffMessage {
-  const agent = resolvePerson(rawCreatedBy, AGENTS);
-  const fallbackName = agent?.displayName ?? (rawCreatedBy.trim() || "Unknown agent");
+  const displayName = rawCreatedBy.trim() || additionalAliases.find((value) => value.trim())?.trim() || "Intercom";
+  const agent = resolvePerson([rawCreatedBy, ...additionalAliases], AGENTS);
   const userIds = Array.from(
     new Set([
       ...(agent?.discordUserId ? [agent.discordUserId] : [])
@@ -183,13 +193,13 @@ export function resolveAgentHandoff(
 
   if (userIds.length > 0) {
     return {
-      content: `Created by ${fallbackName} ${userIds.map((id) => `<@${id}>`).join(" ")}`,
+      content: `Created by ${displayName} ${userIds.map((id) => `<@${id}>`).join(" ")}`,
       allowedMentions: { parse: [], users: userIds }
     };
   }
 
   return {
-    content: `Created by ${fallbackName}`,
+    content: `Created by ${displayName}`,
     allowedMentions: { parse: [], users: [] }
   };
 }
@@ -198,7 +208,7 @@ export function resolveCreatedByName(
   rawCreatedBy: string,
   fallbackName = "Agent"
 ): string {
-  const agent = resolvePerson(rawCreatedBy, AGENTS);
+  const agent = resolvePerson([rawCreatedBy], AGENTS);
 
   if (agent) {
     return agent.displayName;
@@ -230,7 +240,7 @@ export function buildRoutingHandoffMessage(routingTags: FollowUpRoutingTag[]): H
   }
 
   return {
-    content: "Agent should assign this to the dev in charge if dev follow-up is required.",
+    content: "Assign to the responsible dev if dev is required.",
     allowedMentions: { parse: [], users: [] }
   };
 }

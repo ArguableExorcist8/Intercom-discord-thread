@@ -7,14 +7,23 @@ export type FollowUpRoutingTag =
 export type FollowUpRoutingBucket = FollowUpRoutingTag;
 
 export interface SupportMessage {
+  partId?: string;
   role: SupportRole;
   timestamp: string;
   text: string;
   authorName?: string;
 }
 
+export interface FollowUpSyncState {
+  threadId: string;
+  lastSeenPartId: string;
+  status: "open" | "closed" | "";
+}
+
 export interface Conversation {
   conversationId: string;
+  ticketId?: string;
+  ticketDisplayId?: string;
   createdAt: string;
   playerName: string;
   playerLevel: number;
@@ -22,6 +31,8 @@ export interface Conversation {
   createdBy: string;
   routingTags: FollowUpRoutingTag[];
   messages: SupportMessage[];
+  state?: string;
+  followUpSync?: FollowUpSyncState;
 }
 
 export type Priority = "Low" | "Medium" | "High" | "Urgent";

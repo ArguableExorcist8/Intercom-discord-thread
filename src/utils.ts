@@ -73,16 +73,10 @@ export function buildIntercomConversationUrl(conversationId: string): string {
   return `https://app.intercom.com/a/inbox/d0omojfl/inbox/shared/all/conversation/${encodeURIComponent(conversationId)}?view=List`;
 }
 
-export function buildTicketEmbed(ticketUrl: string): EmbedBuilder {
-  return new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle("Ticket")
-    .setURL(ticketUrl);
-}
-
 export function createEmbed(
   conversation: Conversation,
-  summary: ConversationSummary
+  summary: ConversationSummary,
+  ticketUrl: string
 ): EmbedBuilder {
   const createdAtDate = new Date(conversation.createdAt);
   const timestampDate = Number.isNaN(createdAtDate.getTime())
@@ -124,8 +118,8 @@ export function createEmbed(
         inline: false
       },
       { name: "Priority", value: clampFieldValue(summary.priority), inline: true },
-      { name: "Category", value: clampFieldValue(summary.category), inline: true }
+      { name: "Category", value: clampFieldValue(summary.category), inline: true },
+      { name: "\u200b", value: `[Internet Ticket](${ticketUrl})`, inline: false }
     )
-    .setFooter({ text: "Ticket created in Intercom" })
     .setTimestamp(timestampDate);
 }

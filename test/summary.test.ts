@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { generateSummary } from "../src/summary";
+import { generateMaterialConversationUpdate, generateSummary } from "../src/summary";
 import type { Conversation } from "../src/types";
 
 const conversation: Conversation = {
@@ -52,6 +52,37 @@ test("retries a valid but incomplete DeepSeek JSON response", async () => {
       delete process.env.DEEPSEEK_MODEL;
     } else {
       process.env.DEEPSEEK_MODEL = originalModel;
+    }
+  }
+});
+
+test("returns a material update decision from DeepSeek", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "test-key";
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify({ shouldPost: true, delta: "Customer provided game ID game-123.", relatedToPreviousUpdate: false }) } }]
+  }), { status: 200 })) as typeof fetch;
+
+  try {
+    const update = await generateMaterialConversationUpdate(
+      conversation,
+      [{ partId: "part-2", role: "user", text: "The game ID is game-123.", timestamp: "2026-01-01T00:01:00.000Z" }],
+      1_000
+    );
+
+    assert.deepEqual(update, {
+      shouldPost: true,
+      delta: "Customer provided game ID game-123.",
+      relatedToPreviousUpdate: false
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+
+    if (originalKey === undefined) {
+      delete process.env.DEEPSEEK_API_KEY;
+    } else {
+      process.env.DEEPSEEK_API_KEY = originalKey;
     }
   }
 });

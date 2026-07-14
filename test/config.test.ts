@@ -5,6 +5,7 @@ import { loadRuntimeConfig } from "../src/config";
 const configKeys = [
   "DISCORD_TOKEN",
   "INTERCOM_CONNECTOR_SECRET",
+  "INTERCOM_WEBHOOK_CLIENT_SECRET",
   "INTERCOM_ACCESS_TOKEN",
   "DEEPSEEK_API_KEY",
   "FOLLOWUP_CHANNEL_ID",
@@ -17,6 +18,7 @@ const configKeys = [
   "INTERCOM_RATE_LIMIT_MAX",
   "INTERCOM_RATE_LIMIT_WINDOW_MS",
   "INTERCOM_DEDUPLICATION_TTL_MS",
+  "INTERCOM_WEBHOOK_PROCESSING_TIMEOUT_MS",
   "TRUST_PROXY_HOPS",
   "AGENT_ARG_DISCORD_ID",
   "AGENT_SWATCH_DISCORD_ID",
@@ -30,6 +32,7 @@ const configKeys = [
 const validEnvironment: Record<string, string> = {
   DISCORD_TOKEN: "token",
   INTERCOM_CONNECTOR_SECRET: "secret",
+  INTERCOM_WEBHOOK_CLIENT_SECRET: "webhook-secret",
   INTERCOM_ACCESS_TOKEN: "token",
   DEEPSEEK_API_KEY: "key",
   FOLLOWUP_CHANNEL_ID: "12345678901234567",
@@ -66,6 +69,7 @@ test("validates required production configuration at startup", () => {
     const config = loadRuntimeConfig();
     assert.equal(config.port, 3000);
     assert.equal(config.outboundTimeoutMs, 15_000);
+    assert.equal(config.webhookProcessingTimeoutMs, 4_000);
   });
 });
 
@@ -75,6 +79,10 @@ test("rejects missing secrets and malformed Discord IDs", () => {
     assert.throws(() => loadRuntimeConfig(), /INTERCOM_CONNECTOR_SECRET/);
 
     process.env.INTERCOM_CONNECTOR_SECRET = "secret";
+    delete process.env.INTERCOM_WEBHOOK_CLIENT_SECRET;
+    assert.throws(() => loadRuntimeConfig(), /INTERCOM_WEBHOOK_CLIENT_SECRET/);
+
+    process.env.INTERCOM_WEBHOOK_CLIENT_SECRET = "webhook-secret";
     process.env.FOLLOWUP_CHANNEL_ID = "not-a-discord-id";
     assert.throws(() => loadRuntimeConfig(), /FOLLOWUP_CHANNEL_ID/);
   });

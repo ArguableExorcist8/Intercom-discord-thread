@@ -3,6 +3,8 @@ import type { FollowUpConfig, FollowUpRoutingTag } from "./types";
 export interface RuntimeConfig {
   port: number;
   connectorSecret: string;
+  webhookClientSecret: string;
+  webhookProcessingTimeoutMs: number;
   outboundTimeoutMs: number;
   rateLimitMax: number;
   rateLimitWindowMs: number;
@@ -63,6 +65,7 @@ export function getFollowUpConfig(): FollowUpConfig {
 export function loadRuntimeConfig(): RuntimeConfig {
   requiredEnv("DISCORD_TOKEN");
   const connectorSecret = requiredEnv("INTERCOM_CONNECTOR_SECRET");
+  const webhookClientSecret = requiredEnv("INTERCOM_WEBHOOK_CLIENT_SECRET");
   requiredEnv("INTERCOM_ACCESS_TOKEN");
   requiredEnv("DEEPSEEK_API_KEY");
 
@@ -87,6 +90,8 @@ export function loadRuntimeConfig(): RuntimeConfig {
   return {
     port: readInteger("PORT", 3000, 1, 65535),
     connectorSecret,
+    webhookClientSecret,
+    webhookProcessingTimeoutMs: readInteger("INTERCOM_WEBHOOK_PROCESSING_TIMEOUT_MS", 4_000, 1_000, 4_900),
     outboundTimeoutMs: readInteger("OUTBOUND_TIMEOUT_MS", 15_000, 1_000, 60_000),
     rateLimitMax: readInteger("INTERCOM_RATE_LIMIT_MAX", 30, 1, 1_000),
     rateLimitWindowMs: readInteger("INTERCOM_RATE_LIMIT_WINDOW_MS", 60_000, 1_000, 3_600_000),
