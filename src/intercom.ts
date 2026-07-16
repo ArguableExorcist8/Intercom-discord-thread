@@ -7,6 +7,7 @@ export interface IntercomTicketRequest {
   conversationId?: string;
   ticketId?: string;
   playerLevel?: number;
+  partnerStatus?: boolean;
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -23,6 +24,26 @@ function readString(value: unknown): string {
   }
 
   return "";
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  if (value === true || value === false) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === "true") {
+      return true;
+    }
+
+    if (normalized === "false") {
+      return false;
+    }
+  }
+
+  return undefined;
 }
 
 function readStringList(value: unknown): string[] {
@@ -83,9 +104,9 @@ export function parseIntercomTicketRequest(body: unknown): IntercomTicketRequest
 
   if (
     keys.length === 0 ||
-    keys.some((key) => key !== "conversation_id" && key !== "ticket_id" && key !== "player_level")
+    keys.some((key) => key !== "conversation_id" && key !== "ticket_id" && key !== "player_level" && key !== "partner_status")
   ) {
-    throw new AppError(400, "Request body may contain only ticket_id, conversation_id, and player_level.");
+    throw new AppError(400, "Request body may contain only ticket_id, conversation_id, player_level, and partner_status.");
   }
 
   const conversationId = readString(body.conversation_id);
@@ -103,21 +124,33 @@ export function parseIntercomTicketRequest(body: unknown): IntercomTicketRequest
     throw new AppError(400, "ticket_id is required.");
   }
 
-  if (body.player_level === undefined || body.player_level === null || body.player_level === "") {
-    return ticketId ? { ticketId, ...(conversationId ? { conversationId } : {}) } : { conversationId };
+  let playerLevel: number | undefined;
+
+  if (body.player_level !== undefined && body.player_level !== null && body.player_level !== "") {
+    playerLevel = typeof body.player_level === "number"
+      ? body.player_level
+      : typeof body.player_level === "string"
+        ? Number(body.player_level.trim())
+        : Number.NaN;
+
+    if (!Number.isFinite(playerLevel) || playerLevel < 0 || playerLevel > 1_000_000) {
+      throw new AppError(400, "player_level must be a non-negative number.");
+    }
   }
 
-  const playerLevel = typeof body.player_level === "number"
-    ? body.player_level
-    : typeof body.player_level === "string"
-      ? Number(body.player_level.trim())
-      : Number.NaN;
+  const hasPartnerStatus = body.partner_status !== undefined && body.partner_status !== null && body.partner_status !== "";
+  const partnerStatus = hasPartnerStatus ? readBoolean(body.partner_status) : undefined;
 
-  if (!Number.isFinite(playerLevel) || playerLevel < 0 || playerLevel > 1_000_000) {
-    throw new AppError(400, "player_level must be a non-negative number.");
+  if (hasPartnerStatus && partnerStatus === undefined) {
+    throw new AppError(400, "partner_status must be true or false.");
   }
+
+  const overrides = {
+    ...(playerLevel === undefined ? {} : { playerLevel }),
+    ...(partnerStatus === undefined ? {} : { partnerStatus })
+  };
 
   return ticketId
-    ? { ticketId, ...(conversationId ? { conversationId } : {}), playerLevel }
-    : { conversationId, playerLevel };
+    ? { ticketId, ...(conversationId ? { conversationId } : {}), ...overrides }
+    : { conversationId, ...overrides };
 }

@@ -28,7 +28,7 @@ import {
   isTicketFollowUpWebhookTopic,
   processFollowUpWebhook
 } from "./followUpSync";
-import type { Conversation, DiscordThreadResult } from "./types";
+import type { Conversation, DiscordThreadResult, FollowUpRoutingTag } from "./types";
 import { AppError, logEvent } from "./utils";
 
 interface TicketResponse {
@@ -41,12 +41,26 @@ interface TicketResponse {
 export interface ServerDependencies {
   fetchConversation: (conversationId: string) => Promise<Conversation>;
   processConversation: (conversation: Conversation) => Promise<DiscordThreadResult>;
-  processTicket: (ticketId: string, playerLevel?: number, conversationId?: string) => Promise<TicketResponse>;
+  processTicket: (ticketId: string, playerLevel?: number, conversationId?: string, partnerStatus?: boolean) => Promise<TicketResponse>;
   processFollowUpWebhook?: (topic: string, conversationId: string) => Promise<void>;
   processDataConnectorExecution?: (conversationId: string, adminId: string) => Promise<void>;
 }
 
 const DATA_CONNECTOR_EXECUTION_COMPLETED_TOPIC = "data_connector.execution.completed";
+
+function applyConnectorRoutingOverrides(
+  conversation: Conversation,
+  playerLevel?: number,
+  partnerStatus?: boolean
+): Conversation {
+  return {
+    ...conversation,
+    ...(playerLevel === undefined ? {} : { playerLevel }),
+    ...(partnerStatus !== true
+      ? {}
+      : { routingTags: Array.from(new Set<FollowUpRoutingTag>([...conversation.routingTags, "vipPartner"])) })
+  };
+}
 
 function hashSecret(value: string): Buffer {
   return createHash("sha256").update(value).digest();
@@ -206,16 +220,14 @@ function defaultDependencies(config: RuntimeConfig): ServerDependencies {
       }, config.outboundTimeoutMs);
       return thread;
     },
-    processTicket: async (ticketId, playerLevel, conversationId) => {
+    processTicket: async (ticketId, playerLevel, conversationId, partnerStatus) => {
       const conversation = await hydrateTicketFromIntercom(ticketId, config.outboundTimeoutMs, conversationId);
 
       if (!conversation) {
         throw new AppError(404, "Intercom ticket is not linked to a conversation.", "INTERCOM_TICKET_NOT_LINKED");
       }
 
-      const preparedConversation = playerLevel === undefined
-        ? conversation
-        : { ...conversation, playerLevel };
+      const preparedConversation = applyConnectorRoutingOverrides(conversation, playerLevel, partnerStatus);
       const summary = await generateSummary(preparedConversation, config.outboundTimeoutMs);
       const thread = await createFollowUpThread(preparedConversation, summary);
       await updateFollowUpTicketSyncState(ticketId, {
@@ -432,7 +444,8 @@ export function createApp(config: RuntimeConfig, overrides?: Partial<ServerDepen
           const ticketResult = await dependencies.processTicket(
             ticket.ticketId,
             ticket.playerLevel,
-            ticket.conversationId
+            ticket.conversationId,
+            ticket.partnerStatus
           );
 
           if (ticketResult.ticketId) {
@@ -447,10 +460,9 @@ export function createApp(config: RuntimeConfig, overrides?: Partial<ServerDepen
         }
 
         const conversation = await dependencies.fetchConversation(ticket.conversationId ?? "");
-        const thread = await dependencies.processConversation({
-          ...conversation,
-          ...(ticket.playerLevel === undefined ? {} : { playerLevel: ticket.playerLevel })
-        });
+        const thread = await dependencies.processConversation(
+          applyConnectorRoutingOverrides(conversation, ticket.playerLevel, ticket.partnerStatus)
+        );
 
         return { conversationId: conversation.conversationId, thread };
       });

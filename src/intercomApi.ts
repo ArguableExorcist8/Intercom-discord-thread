@@ -58,6 +58,18 @@ function readBoolean(...values: unknown[]): boolean {
   });
 }
 
+function readAttribute(record: JsonRecord, attributeName: string): unknown {
+  const normalizedAttributeName = attributeName.trim().toLowerCase();
+
+  for (const [key, value] of Object.entries(record)) {
+    if (key.trim().toLowerCase() === normalizedAttributeName) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 function stripHtml(value: string): string {
   return value
     .replace(/<br\s*\/?>/gi, "\n")
@@ -304,7 +316,14 @@ function readRoutingTags(raw: JsonRecord): ReturnType<typeof normalizeRoutingTag
     contactAttributes.routing_tags
   );
 
-  if (readBoolean(contact.partner, attributes.partner, contactAttributes.partner) && !tags.includes("vipPartner")) {
+  if (
+    readBoolean(
+      readAttribute(contact, "partner"),
+      readAttribute(attributes, "partner"),
+      readAttribute(contactAttributes, "partner")
+    ) &&
+    !tags.includes("vipPartner")
+  ) {
     tags.push("vipPartner");
   }
 

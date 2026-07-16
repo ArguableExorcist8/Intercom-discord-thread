@@ -93,7 +93,7 @@ test("ticket endpoint requires connector authentication", async () => {
   });
 });
 
-test("ticket endpoint accepts Bearer authentication, applies player_level, and rejects unknown fields", async () => {
+test("ticket endpoint accepts Bearer authentication, applies connector routing fields, and rejects unknown fields", async () => {
   let processedConversation: Conversation | undefined;
   const app = createApp(config, {
     fetchConversation: async (conversationId) => ({ ...conversation, conversationId }),
@@ -110,11 +110,12 @@ test("ticket endpoint accepts Bearer authentication, applies player_level, and r
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.connectorSecret}`
       },
-      body: JSON.stringify({ conversation_id: "conversation-1", player_level: "68" })
+      body: JSON.stringify({ conversation_id: "conversation-1", player_level: "68", partner_status: "true" })
     });
 
     assert.equal(validResponse.status, 200);
     assert.equal(processedConversation?.playerLevel, 68);
+    assert.deepEqual(processedConversation?.routingTags, ["vipPartner"]);
 
     const rejectedResponse = await fetch(`${baseUrl}/intercom/ticket`, {
       method: "POST",
@@ -194,11 +195,13 @@ test("ticket endpoint uses the internal ticket ID for ticket-first thread creati
   let receivedTicketId = "";
   let receivedPlayerLevel: number | undefined;
   let receivedConversationId: string | undefined;
+  let receivedPartnerStatus: boolean | undefined;
   const app = createApp(config, {
-    processTicket: async (ticketId, playerLevel, conversationId) => {
+    processTicket: async (ticketId, playerLevel, conversationId, partnerStatus) => {
       receivedTicketId = ticketId;
       receivedPlayerLevel = playerLevel;
       receivedConversationId = conversationId;
+      receivedPartnerStatus = partnerStatus;
       return {
         conversationId: "conversation-1",
         thread: { threadId: "thread-1", threadUrl: "https://discord.test/thread-1" }
@@ -213,7 +216,8 @@ test("ticket endpoint uses the internal ticket ID for ticket-first thread creati
       body: JSON.stringify({
         ticket_id: "internal-ticket-1",
         conversation_id: "conversation-1",
-        player_level: 71
+        player_level: 71,
+        partner_status: true
       })
     });
 
@@ -223,6 +227,7 @@ test("ticket endpoint uses the internal ticket ID for ticket-first thread creati
   assert.equal(receivedTicketId, "internal-ticket-1");
   assert.equal(receivedPlayerLevel, 71);
   assert.equal(receivedConversationId, "conversation-1");
+  assert.equal(receivedPartnerStatus, true);
 });
 
 test("webhook validates signatures, handles supported topics, and ignores unsupported topics", async () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getIntercomAdmin, hydrateTicketFromIntercom } from "../src/intercomApi";
+import { getIntercomAdmin, hydrateConversationFromIntercom, hydrateTicketFromIntercom } from "../src/intercomApi";
 
 test("hydrates ticket replies through their linked conversation", async () => {
   const originalFetch = globalThis.fetch;
@@ -71,6 +71,45 @@ test("hydrates ticket replies through their linked conversation", async () => {
       delete process.env.INTERCOM_VERSION;
     } else {
       process.env.INTERCOM_VERSION = originalVersion;
+    }
+  }
+});
+
+test("assigns the VIP/Partner route when Intercom's Partner contact attribute is true", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.INTERCOM_ACCESS_TOKEN;
+  process.env.INTERCOM_ACCESS_TOKEN = "test-token";
+  globalThis.fetch = (async (url) => {
+    if (String(url).includes("/conversations/conversation-partner")) {
+      return new Response(JSON.stringify({
+        id: "conversation-partner",
+        created_at: 1_700_000_000,
+        state: "open",
+        contacts: {
+          contacts: [{
+            id: "user-partner",
+            name: "Partner player",
+            custom_attributes: { Partner: true }
+          }]
+        },
+        conversation_parts: { conversation_parts: [] }
+      }), { status: 200 });
+    }
+
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const conversation = await hydrateConversationFromIntercom("conversation-partner", 1_000);
+
+    assert.deepEqual(conversation.routingTags, ["vipPartner"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+
+    if (originalToken === undefined) {
+      delete process.env.INTERCOM_ACCESS_TOKEN;
+    } else {
+      process.env.INTERCOM_ACCESS_TOKEN = originalToken;
     }
   }
 });

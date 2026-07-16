@@ -43,11 +43,12 @@ The comparison is constant-time. Requests without valid credentials receive `401
 ```json
 {
   "ticket_id": "{{ticket.id}}",
-  "conversation_id": "{{conversation.id}}"
+  "conversation_id": "{{conversation.id}}",
+  "partner_status": "{{custom_data.partner}}"
 }
 ```
 
-Use `{{ticket.id}}`, not the Inbox display number (for example, `#116575854`); the display `ticket_id` cannot be retrieved through the Ticket API. `conversation_id` is used for the Intercom link (`.../conversation/{conversation_id}`) and as a fallback when resolving the ticket's linked conversation. All customer details, messages, tags, assignee data, and routing inputs are fetched directly from Intercom. Connector-supplied transcripts, contact data, tags, and mention IDs are rejected.
+Use `{{ticket.id}}`, not the Inbox display number (for example, `#116575854`); the display `ticket_id` cannot be retrieved through the Ticket API. `conversation_id` is used for the Intercom link (`.../conversation/{conversation_id}`) and as a fallback when resolving the ticket's linked conversation. `partner_status` is optional, must resolve to `true` or `false`, and adds the `VIP/Partner` tag when true. Contact details, messages, tags, assignee data, and other routing inputs are fetched directly from Intercom; connector-supplied transcripts, tags, and mention IDs are rejected.
 
 #### Success response
 

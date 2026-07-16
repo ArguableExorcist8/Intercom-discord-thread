@@ -4,8 +4,6 @@ The bot receives Intercom conversation ID, fetches the ticket from Intercom, sum
 
 ## Routing
 
-Threads may have multiple forum tags. The bot applies tags in this order: `VIP/Partner`, `URGENT`, `Bug Bounty`, `Standard`.
-
 - `VIP/Partner`: contact is a partner or level 50+. This can combine with another tag.
 - `URGENT`: active, system-wide production/security/data/infrastructure emergency. This is the only tag that automatically pings oop and nikita.
 - `Bug Bounty`: an intentional security disclosure or bounty submission, such as a reported vulnerability, exploit, proof of concept, or responsible disclosure. It does not auto-ping developers; a researcher report can still combine with `URGENT` when an active exploit is involved.
@@ -13,10 +11,9 @@ Threads may have multiple forum tags. The bot applies tags in this order: `VIP/P
 
 ## Security Operations
 
-- `.env.example` contains placeholders.
-- [NEXT_STEPS.md](NEXT_STEPS.md) lists the required Intercom webhook, conversation-attribute, Discord-permission, and deployment setup.
+- `.env.example`
 
-## Intercom Lifecycle Sync
+## Lifecycle Sync
 
 After a thread is created, the bot stores its Discord thread ID on the Intercom conversation. Signed Intercom webhooks can then post only material customer updates, archive and lock threads when conversations close, and restore them when conversations reopen. This database-free sync is intended for one long-running app instance.
 
