@@ -111,8 +111,12 @@ export async function processFollowUpWebhook(
   }
 
   if (event === "closed") {
+    // Discord is the observable source of truth for the follow-up's closed state.
+    // Reconcile it for every close notification because the Intercom status attribute
+    // can be stale even when the thread is still open.
+    await dependencies.closeThread(state.threadId);
+
     if (state.status !== "closed") {
-      await dependencies.closeThread(state.threadId);
       await dependencies.updateState(conversationId, { status: "closed" });
     }
 

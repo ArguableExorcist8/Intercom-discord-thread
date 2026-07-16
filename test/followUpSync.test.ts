@@ -62,7 +62,7 @@ test("non-material customer updates advance the marker without posting", async (
   assert.deepEqual(updates, [{ lastSeenPartId: "part-3" }]);
 });
 
-test("close and reopen events only change threads when their state changes", async () => {
+test("close events reconcile Discord even when the stored status is already closed", async () => {
   const events: string[] = [];
   let current = conversation("part-3", "open");
   const dependencies = {
@@ -83,5 +83,5 @@ test("close and reopen events only change threads when their state changes", asy
   await processFollowUpWebhook("opened", "conversation-1", dependencies);
   await processFollowUpWebhook("opened", "conversation-1", dependencies);
 
-  assert.deepEqual(events, ["close", "state:closed", "reopen", "state:open"]);
+  assert.deepEqual(events, ["close", "state:closed", "close", "reopen", "state:open"]);
 });
