@@ -1,6 +1,6 @@
 # Intercom To Discord Follow-up Bot
 
-The bot receives Intercom conversation ID, fetches the ticket from Intercom, summarizes it with AI, and creates a routed Discord thread.
+The bot receives Intercom conversation ID, fetches the ticket from Intercom, summarizes it, and creates a routed Discord thread.
 
 ## Routing
 
